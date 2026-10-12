@@ -12,6 +12,16 @@ rm -rf "$APP" "dist/GrokIP.app"
 
 mkdir -p "$BUILD" "$APP/Contents/MacOS" "$APP/Contents/Resources/Fonts"
 
+# Newer SDKs implement SwiftUI property wrappers such as @State as macros. Xcode
+# passes the SDK's macro plugin folders to the compiler; a bare swiftc does not.
+PLUGINS=()
+PLATFORM="$(xcrun --sdk macosx --show-sdk-platform-path 2>/dev/null || true)"
+for dir in "$SDK/usr/lib/swift/host/plugins" "$PLATFORM/Developer/usr/lib/swift/host/plugins"; do
+  if [[ -d "$dir" ]]; then
+    PLUGINS+=(-plugin-path "$dir")
+  fi
+done
+
 CORE=()
 APP_SWIFT=()
 for f in Sources/GrokIPCore/**/*.swift; do CORE+=("$f"); done
@@ -26,6 +36,7 @@ swiftc -parse-as-library -swift-version 6 -target "$TARGET" -sdk "$SDK" \
 
 echo "==> Release build"
 swiftc -parse-as-library -swift-version 6 -O -target "$TARGET" -sdk "$SDK" \
+  "${PLUGINS[@]}" \
   -framework SwiftUI -framework AppKit -framework Foundation \
   -framework Network -framework SystemConfiguration -framework CoreText \
   -framework UniformTypeIdentifiers \

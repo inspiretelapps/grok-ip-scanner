@@ -20,8 +20,16 @@ struct DeviceListView: View {
                             DeviceRowView(
                                 device: device,
                                 selected: session.selection == device.id,
+                                hovering: session.hoveredID == device.id,
                                 isNew: session.isNew(device)
                             )
+                            .onHover { inside in
+                                if inside {
+                                    session.hoveredID = device.id
+                                } else if session.hoveredID == device.id {
+                                    session.hoveredID = nil
+                                }
+                            }
                             .onTapGesture { session.selection = device.id }
                             .onTapGesture(count: 2) { session.openLogin(device) }
                             .contextMenu { rowMenu(device) }
@@ -125,8 +133,10 @@ struct DeviceListView: View {
 struct DeviceRowView: View {
     var device: Device
     var selected: Bool
+    // Hover lives in ScanSession rather than @State: on newer SDKs @State is a
+    // macro whose plugin a plain swiftc build (build.sh) may not load.
+    var hovering: Bool = false
     var isNew: Bool = false
-    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -187,7 +197,6 @@ struct DeviceRowView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(Palette.hairline.opacity(0.45)).frame(height: 1)
         }
-        .onHover { hovering = $0 }
     }
 
     private var led: Color {

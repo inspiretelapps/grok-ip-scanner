@@ -22,6 +22,7 @@ final class ScanSession {
     var filterText: String = ""
     var devices: [Device] = []
     var selection: String?
+    var hoveredID: String?
     var phase: Phase = .idle
     var progressPhase: String = ""
     var completed: Int = 0
