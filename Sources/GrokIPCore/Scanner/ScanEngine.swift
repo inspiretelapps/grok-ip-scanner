@@ -165,11 +165,12 @@ public actor ScanEngine {
             ssdpResponses.filter { config.range.contains($0.ip) },
             timeout: config.httpTimeout
         )
-        for response in ssdpResponses where config.range.contains(response.ip) {
-            live.insert(response.ip)
-            var device = acc.snapshot(response.ip) ?? Device(ip: response.ip)
+        let ssdpIPs = Set(ssdpResponses.map(\.ip)).filter { config.range.contains($0) }
+        for ip in ssdpIPs.sorted() {
+            live.insert(ip)
+            var device = acc.snapshot(ip) ?? Device(ip: ip)
             device.sources.insert(.ssdp)
-            if let info = upnp[response.ip]?.info {
+            if let info = upnp[ip]?.info {
                 if let name = info.friendlyName, device.hostname == nil {
                     device.hostname = name
                 }
@@ -178,21 +179,21 @@ public actor ScanEngine {
                 }
                 if let url = info.presentationURL,
                    url.scheme == "http" || url.scheme == "https",
-                   url.host == response.ip.string,
+                   url.host == ip.string,
                    !device.webPages.contains(where: { $0.url == url }) {
                     device.webPages.append(
                         WebProbeResult(
                             url: url,
                             statusCode: 200,
                             title: info.friendlyName,
-                            server: upnp[response.ip]?.server,
+                            server: upnp[ip]?.server,
                             isLogin: false,
                             isTLS: url.scheme == "https"
                         )
                     )
                 }
             }
-            if device.mac == nil, let mac = arp[response.ip] {
+            if device.mac == nil, let mac = arp[ip] {
                 device.mac = mac
                 device.vendor = oui.vendor(for: mac)
                 device.sources.insert(.arp)

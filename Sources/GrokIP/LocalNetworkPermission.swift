@@ -112,13 +112,13 @@ final class LocalNetworkPermission {
                 next = nil
             }
             guard let next else { return }
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.status = next
             }
         }
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard !results.isEmpty else { return }
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.status = .granted
             }
         }
