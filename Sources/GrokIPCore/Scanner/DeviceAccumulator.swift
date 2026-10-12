@@ -39,7 +39,7 @@ final class DeviceAccumulator: @unchecked Sendable {
 
     func ingestBonjour(_ hit: BonjourHit, range: ScanRange) {
         guard let ip = hit.ip, range.contains(ip) else { return }
-        var device = Device(ip: ip, hostname: hit.hostname ?? hit.name, sources: [.bonjour])
+        var device = Device(ip: ip, hostname: hit.hostname ?? hit.name, model: hit.model, sources: [.bonjour])
         if hit.port > 0, hit.port < 65_536 {
             device.services = [
                 NetworkService(name: hit.serviceName, port: UInt16(hit.port), url: hit.webURL)

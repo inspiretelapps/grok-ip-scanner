@@ -22,6 +22,7 @@ final class ScanSession {
     var filterText: String = ""
     var devices: [Device] = []
     var selection: String?
+    var hoveredID: String?
     var phase: Phase = .idle
     var progressPhase: String = ""
     var completed: Int = 0
@@ -30,12 +31,22 @@ final class ScanSession {
     var errorMessage: String?
     var sortKey: SortKey = .ip
     var sortAscending: Bool = true
+    /// MACs that showed up for the first time on the latest scan.
+    var newMACs: Set<MACAddress> = []
+    /// The scan found hosts but macOS handed back no MAC addresses at all,
+    /// which is what a missing Local Network privilege looks like.
+    var macsLikelyHidden = false
 
     let oui: OUILookup
+    let permission: LocalNetworkPermission
+    private let knownDevices: KnownDevices
     private let engine = ScanEngine()
     private var scanTask: Task<Void, Never>?
     private var ticker: Task<Void, Never>?
     private var startedAt: Date?
+    /// True when the scanned range is this Mac's own subnet, the only case where
+    /// every live host should come back with a MAC address.
+    private var scanIsOnLink = false
 
     enum SortKey: String, CaseIterable {
         case ip = "IP"
@@ -47,9 +58,40 @@ final class ScanSession {
 
     init() {
         oui = OUILookup.bundled()
+        permission = LocalNetworkPermission()
+        knownDevices = KnownDevices()
         snapshot = InterfaceEnumerator.snapshot()
         selectedInterfaceID = snapshot.preferred?.id
         rangeText = snapshot.preferred?.cidr.description ?? ""
+        permission.start(probeAddresses: Self.permissionProbes(snapshot))
+    }
+
+    /// Addresses to aim the Local Network alert trigger at: the gateway and a
+    /// neighbor on the preferred subnet.
+    private static func permissionProbes(_ snapshot: InterfaceSnapshot) -> [IPv4Address] {
+        var probes: [IPv4Address] = []
+        if let gateway = snapshot.gatewayIP { probes.append(gateway) }
+        if let iface = snapshot.preferred {
+            let neighbor = IPv4Address(raw: iface.ip.raw ^ 1)
+            if iface.cidr.contains(neighbor), !probes.contains(neighbor) { probes.append(neighbor) }
+        }
+        return probes
+    }
+
+    var showsPermissionBanner: Bool {
+        permission.status == .denied || macsLikelyHidden
+    }
+
+    func isNew(_ device: Device) -> Bool {
+        guard let mac = device.mac else { return false }
+        return newMACs.contains(mac)
+    }
+
+    func wake(_ device: Device) {
+        guard let mac = device.mac else { return }
+        if !WakeOnLAN.send(to: mac, subnetBroadcast: selectedInterface?.broadcast) {
+            NSSound.beep()
+        }
     }
 
     var selectedInterface: NetworkInterfaceInfo? {
@@ -84,6 +126,7 @@ final class ScanSession {
                     device.hostname ?? "",
                     device.mac?.canonical ?? "",
                     device.vendor ?? "",
+                    device.model ?? "",
                     device.kind.rawValue,
                     device.webTitle ?? "",
                     device.primaryLogin?.url.absoluteString ?? ""
@@ -134,6 +177,8 @@ final class ScanSession {
         devices = []
         selection = nil
         errorMessage = nil
+        newMACs = []
+        macsLikelyHidden = false
         completed = 0
         total = range.hostCount
         elapsed = 0
@@ -143,6 +188,9 @@ final class ScanSession {
         startTicker()
 
         let iface = selectedInterface
+        scanIsOnLink = iface.map { iface in
+            range.start.raw >= iface.cidr.start.raw && range.end.raw <= iface.cidr.end.raw
+        } ?? false
         let config = ScanConfig(
             range: range,
             interfaceName: iface?.name,
@@ -151,7 +199,14 @@ final class ScanSession {
             gatewayIP: snapshot.gatewayIP
         )
         let oui = self.oui
+        let permission = self.permission
         scanTask = Task { [engine] in
+            if permission.status == .checking || permission.status == .denied {
+                // Give the Local Network alert a moment so the first scan is not wasted.
+                self.progressPhase = "Waiting for Local Network access"
+                await permission.settle(timeout: .seconds(6))
+                if Task.isCancelled { return }
+            }
             let stream = await engine.scan(config: config, oui: oui)
             for await event in stream {
                 if Task.isCancelled { break }
@@ -213,6 +268,14 @@ final class ScanSession {
             }
         case .finished(_, let elapsed):
             self.elapsed = elapsed
+            let macs = devices.compactMap { $0.isLocal ? nil : $0.mac }
+            newMACs = knownDevices.record(macs)
+            let remote = devices.filter { !$0.isLocal }
+            macsLikelyHidden = scanIsOnLink
+                && permission.status != .granted
+                && !LocalNetworkPermission.isExempt
+                && remote.count >= 2
+                && macs.isEmpty
             phase = .complete
             progressPhase = "Done"
             ticker?.cancel()

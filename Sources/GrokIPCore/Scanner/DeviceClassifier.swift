@@ -61,6 +61,7 @@ public enum DeviceClassifier: Sendable {
         var parts: [String] = []
         if let hostname = device.hostname { parts.append(hostname) }
         if let vendor = device.vendor { parts.append(vendor) }
+        if let model = device.model { parts.append(model) }
         if let title = device.webTitle { parts.append(title) }
         parts.append(contentsOf: device.webPages.compactMap(\.title))
         parts.append(contentsOf: device.webPages.compactMap(\.server))

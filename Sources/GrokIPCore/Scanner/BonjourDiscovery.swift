@@ -39,6 +39,19 @@ public struct BonjourHit: Sendable, Hashable {
         return trimmed.split(separator: ".").first.map(String.init)?.uppercased() ?? "Bonjour"
     }
 
+    /// Hardware model advertised in TXT records: `model` (_device-info, AirPlay),
+    /// `am` (RAOP), `md` (Google Cast), `ty` (IPP printers).
+    public var model: String? {
+        for key in ["model", "am", "md", "ty", "usb_mdl"] {
+            guard let raw = txt.first(where: { $0.key.lowercased() == key })?.value else { continue }
+            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty {
+                return value
+            }
+        }
+        return nil
+    }
+
     public var webURL: URL? {
         let isHTTP = type.contains("http") || type.contains("ipp")
         guard isHTTP, let ip else { return nil }

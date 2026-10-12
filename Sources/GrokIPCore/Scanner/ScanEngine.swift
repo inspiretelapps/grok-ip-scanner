@@ -71,6 +71,14 @@ public actor ScanEngine {
             return
         }
 
+        // UPnP/SSDP runs alongside the sweep: TVs, speakers, routers and NAS boxes
+        // announce a friendly name and model here even when they ignore ping.
+        let ssdpLocalIP = config.localIP
+        let ssdpTimeout = config.ssdpTimeout
+        async let ssdpTask: [SSDPResponse] = Task.detached(priority: .userInitiated) {
+            SSDPDiscovery.search(localIP: ssdpLocalIP, timeout: ssdpTimeout)
+        }.value
+
         continuation.yield(.progress(phase: "Pinging hosts", completed: 0, total: hosts.count))
         let icmpTimeout = config.icmpTimeout
         async let icmpTask: [IPv4Address: Double] = Task.detached(priority: .userInitiated) {
@@ -152,6 +160,47 @@ public actor ScanEngine {
             }
         }
 
+        let ssdpResponses = await ssdpTask
+        let upnp = await SSDPDiscovery.describe(
+            ssdpResponses.filter { config.range.contains($0.ip) },
+            timeout: config.httpTimeout
+        )
+        let ssdpIPs = Set(ssdpResponses.map(\.ip)).filter { config.range.contains($0) }
+        for ip in ssdpIPs.sorted() {
+            live.insert(ip)
+            var device = acc.snapshot(ip) ?? Device(ip: ip)
+            device.sources.insert(.ssdp)
+            if let info = upnp[ip]?.info {
+                if let name = info.friendlyName, device.hostname == nil {
+                    device.hostname = name
+                }
+                if device.model == nil {
+                    device.model = info.model
+                }
+                if let url = info.presentationURL,
+                   url.scheme == "http" || url.scheme == "https",
+                   url.host == ip.string,
+                   !device.webPages.contains(where: { $0.url == url }) {
+                    device.webPages.append(
+                        WebProbeResult(
+                            url: url,
+                            statusCode: 200,
+                            title: info.friendlyName,
+                            server: upnp[ip]?.server,
+                            isLogin: false,
+                            isTLS: url.scheme == "https"
+                        )
+                    )
+                }
+            }
+            if device.mac == nil, let mac = arp[ip] {
+                device.mac = mac
+                device.vendor = oui.vendor(for: mac)
+                device.sources.insert(.arp)
+            }
+            acc.upsert(device)
+        }
+
         let targets = live.sorted()
         continuation.yield(.progress(phase: "Reading names and login pages", completed: 0, total: max(targets.count, 1)))
 
@@ -205,6 +254,22 @@ public actor ScanEngine {
 
         if !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(900))
+
+            // Last ARP read: the port and web probes above made the kernel resolve
+            // hosts that were silent earlier, so pick up their MACs (and any host
+            // that only ever answered ARP).
+            let lateARP = await Task.detached(priority: .userInitiated) {
+                ARPTable.load(interfaceName: config.interfaceName)
+            }.value
+            for (ip, mac) in lateARP where config.range.contains(ip) {
+                let existing = acc.snapshot(ip)
+                guard existing?.mac == nil else { continue }
+                var device = existing ?? Device(ip: ip)
+                device.mac = mac
+                device.vendor = oui.vendor(for: mac)
+                device.sources.insert(.arp)
+                acc.upsert(device)
+            }
         }
         bonjour.stop()
         continuation.yield(.finished(found: acc.count, elapsed: Date().timeIntervalSince(started)))

@@ -7,6 +7,7 @@ struct DeviceDetailView: View {
     var device: Device
     var onOpen: () -> Void
     var onCopy: (String) -> Void
+    var onWake: (() -> Void)? = nil
 
     var body: some View {
         ScrollView {
@@ -31,10 +32,18 @@ struct DeviceDetailView: View {
 
                 fact("IP", device.ip.string, copyable: true)
                 fact("Hostname", device.hostname ?? "Not resolved")
-                fact("MAC", device.mac?.canonical ?? "Not on this subnet yet")
+                fact("MAC", device.mac?.canonical ?? "Not on this subnet yet", copyable: device.mac != nil)
                 fact("Vendor", device.vendor ?? "Unknown")
+                if let model = device.model {
+                    fact("Model", model)
+                }
                 if let rtt = device.rttMilliseconds {
                     fact("Ping", String(format: "%.1f ms", rtt))
+                }
+                if let onWake, device.mac != nil, !device.isLocal {
+                    Button("Wake (Wake-on-LAN)") { onWake() }
+                        .buttonStyle(KeystoneButtonStyle())
+                        .help("Send a magic packet to this MAC address")
                 }
 
                 if !device.services.isEmpty {

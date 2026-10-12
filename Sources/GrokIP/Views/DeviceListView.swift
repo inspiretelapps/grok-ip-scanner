@@ -19,8 +19,17 @@ struct DeviceListView: View {
                         ForEach(session.filteredDevices) { device in
                             DeviceRowView(
                                 device: device,
-                                selected: session.selection == device.id
+                                selected: session.selection == device.id,
+                                hovering: session.hoveredID == device.id,
+                                isNew: session.isNew(device)
                             )
+                            .onHover { inside in
+                                if inside {
+                                    session.hoveredID = device.id
+                                } else if session.hoveredID == device.id {
+                                    session.hoveredID = nil
+                                }
+                            }
                             .onTapGesture { session.selection = device.id }
                             .onTapGesture(count: 2) { session.openLogin(device) }
                             .contextMenu { rowMenu(device) }
@@ -34,7 +43,7 @@ struct DeviceListView: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            headerButton(.ip, width: 150, alignment: .leading)
+            headerButton(.ip, width: 185, alignment: .leading)
             headerButton(.hostname, width: nil, alignment: .leading)
             headerButton(.mac, width: 158, alignment: .leading)
             headerButton(.vendor, width: 150, alignment: .leading)
@@ -110,6 +119,10 @@ struct DeviceListView: View {
         if let host = device.hostname {
             Button("Copy hostname") { session.copy(host) }
         }
+        if device.mac != nil, !device.isLocal {
+            Divider()
+            Button("Wake (Wake-on-LAN)") { session.wake(device) }
+        }
         if device.primaryLogin != nil {
             Divider()
             Button(device.loginLabel) { session.openLogin(device) }
@@ -120,7 +133,10 @@ struct DeviceListView: View {
 struct DeviceRowView: View {
     var device: Device
     var selected: Bool
-    @State private var hovering = false
+    // Hover lives in ScanSession rather than @State: on newer SDKs @State is a
+    // macro whose plugin a plain swiftc build (build.sh) may not load.
+    var hovering: Bool = false
+    var isNew: Bool = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -132,8 +148,17 @@ struct DeviceRowView: View {
                 Text(device.ip.string)
                     .font(Typeface.mono(12.5))
                     .foregroundStyle(Palette.text)
+                if isNew {
+                    Text("NEW")
+                        .font(Typeface.mono(9, weight: .medium))
+                        .foregroundStyle(Palette.chassis)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 2).fill(Palette.activity))
+                        .help("First time this MAC address has been seen on a scan")
+                }
             }
-            .frame(width: 150, alignment: .leading)
+            .frame(width: 185, alignment: .leading)
 
             Text(device.hostname ?? "—")
                 .font(Typeface.sans(12.5))
@@ -172,7 +197,6 @@ struct DeviceRowView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(Palette.hairline.opacity(0.45)).frame(height: 1)
         }
-        .onHover { hovering = $0 }
     }
 
     private var led: Color {

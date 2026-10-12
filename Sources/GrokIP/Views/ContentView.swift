@@ -12,6 +12,9 @@ struct ContentView: View {
         VStack(spacing: 0) {
             ScanHeaderView(session: session)
             VStack(spacing: 12) {
+                if session.showsPermissionBanner {
+                    PermissionBannerView(session: session)
+                }
                 PatchPanelView(
                     range: ScanRange.parse(session.rangeText),
                     live: session.liveIPs,
@@ -29,7 +32,8 @@ struct ContentView: View {
                         DeviceDetailView(
                             device: device,
                             onOpen: { session.openLogin(device) },
-                            onCopy: { session.copy($0) }
+                            onCopy: { session.copy($0) },
+                            onWake: { session.wake(device) }
                         )
                         .frame(minWidth: 260, idealWidth: 300)
                     }
