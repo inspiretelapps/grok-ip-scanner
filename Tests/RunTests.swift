@@ -152,6 +152,81 @@ struct RunTests {
                 && a.primaryLogin?.url.absoluteString == "http://10.0.0.8/"
         }
 
+        check("ssdp response parse") {
+            let reply = "HTTP/1.1 200 OK\r\nCACHE-CONTROL: max-age=1800\r\nLOCATION: http://192.168.1.40:49152/description.xml\r\nSERVER: Linux/4.9 UPnP/1.0 Sonos/80.1\r\nST: upnp:rootdevice\r\nUSN: uuid:RINCON_1::upnp:rootdevice\r\n\r\n"
+            let ip = IPv4Address("192.168.1.40")!
+            let parsed = SSDPResponse.parse(reply, from: ip)
+            return parsed?.location?.absoluteString == "http://192.168.1.40:49152/description.xml"
+                && parsed?.server == "Linux/4.9 UPnP/1.0 Sonos/80.1"
+                && parsed?.searchTarget == "upnp:rootdevice"
+                && SSDPResponse.parse("M-SEARCH * HTTP/1.1\r\n\r\n", from: ip) == nil
+        }
+        check("upnp description parse") {
+            let xml = """
+            <?xml version="1.0"?>
+            <root xmlns="urn:schemas-upnp-org:device-1-0">
+              <specVersion><major>1</major><minor>0</minor></specVersion>
+              <device>
+                <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+                <friendlyName>Living Room TV</friendlyName>
+                <manufacturer>Samsung Electronics</manufacturer>
+                <modelName>UE55TU7100</modelName>
+                <modelNumber>AllShare1.0</modelNumber>
+                <presentationURL>/index.html</presentationURL>
+                <deviceList>
+                  <device><friendlyName>Embedded</friendlyName><manufacturer>Other</manufacturer></device>
+                </deviceList>
+              </device>
+            </root>
+            """
+            let base = URL(string: "http://192.168.1.50:7676/dmr")!
+            let info = UPnPDescription.parse(Data(xml.utf8), base: base)
+            return info?.friendlyName == "Living Room TV"
+                && info?.manufacturer == "Samsung Electronics"
+                && info?.model == "Samsung Electronics UE55TU7100 AllShare1.0"
+                && info?.presentationURL?.absoluteString == "http://192.168.1.50:7676/index.html"
+        }
+        check("upnp model label dedupes manufacturer") {
+            UPnPDescription(manufacturer: "Synology", modelName: "Synology DS220+", modelNumber: "DS220+").model
+                == "Synology DS220+"
+        }
+        check("wake-on-lan magic packet") {
+            let mac = MACAddress.parse("aa:bb:cc:dd:ee:ff")!
+            let packet = WakeOnLAN.magicPacket(for: mac)
+            return packet.count == 102
+                && packet.prefix(6).allSatisfy { $0 == 0xFF }
+                && Array(packet[6..<12]) == mac.bytes
+                && Array(packet[96..<102]) == mac.bytes
+        }
+        check("bonjour txt model") {
+            let hit = BonjourHit(
+                name: "Office Mac",
+                type: "_device-info._tcp.",
+                hostname: nil,
+                ip: nil,
+                port: 0,
+                txt: ["model": "MacBookPro18,3"]
+            )
+            return hit.model == "MacBookPro18,3"
+        }
+        check("interface broadcast") {
+            let iface = NetworkInterfaceInfo(
+                name: "en0",
+                localizedName: "Wi-Fi",
+                ip: IPv4Address("192.168.1.23")!,
+                netmask: IPv4Address("255.255.255.0")!,
+                prefix: 24,
+                mac: nil,
+                isUp: true
+            )
+            return iface.broadcast.string == "192.168.1.255"
+        }
+        check("csv has model column") {
+            let device = Device(ip: IPv4Address("10.0.0.9")!, model: "Synology DS220+")
+            return Device.csvHeader().count == device.csvFields().count
+                && device.csvFields()[4] == "Synology DS220+"
+        }
+
         print("\(ran - failed)/\(ran) passed")
         if failed > 0 {
             exit(1)

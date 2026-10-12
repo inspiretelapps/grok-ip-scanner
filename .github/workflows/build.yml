@@ -1,0 +1,22 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcrun swiftc --version
+      - name: Test and build app
+        run: ./build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Grok-IP-Scanner-macos
+          path: dist/Grok-IP-Scanner-macos.zip

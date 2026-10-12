@@ -13,6 +13,10 @@ public struct NetworkInterfaceInfo: Identifiable, Sendable, Hashable {
         ScanRange.cidr(address: ip, prefix: prefix) ?? ScanRange(start: ip, end: ip, prefix: 32)
     }
 
+    public var broadcast: IPv4Address {
+        IPv4Address(raw: ip.raw | ~netmask.raw)
+    }
+
     public var menuLabel: String {
         "\(localizedName)  \(ip.string)/\(prefix)"
     }

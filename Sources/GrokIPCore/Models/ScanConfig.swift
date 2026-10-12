@@ -10,6 +10,7 @@ public struct ScanConfig: Sendable {
     public var tcpTimeout: TimeInterval
     public var httpTimeout: TimeInterval
     public var dnsTimeout: TimeInterval
+    public var ssdpTimeout: TimeInterval
     public var tcpPorts: [UInt16]
     public var maxHosts: Int
 
@@ -23,6 +24,7 @@ public struct ScanConfig: Sendable {
         tcpTimeout: TimeInterval = 0.28,
         httpTimeout: TimeInterval = 1.6,
         dnsTimeout: TimeInterval = 0.7,
+        ssdpTimeout: TimeInterval = 2.5,
         tcpPorts: [UInt16] = PortCatalog.servicePorts,
         maxHosts: Int = 4094
     ) {
@@ -35,6 +37,7 @@ public struct ScanConfig: Sendable {
         self.tcpTimeout = tcpTimeout
         self.httpTimeout = httpTimeout
         self.dnsTimeout = dnsTimeout
+        self.ssdpTimeout = ssdpTimeout
         self.tcpPorts = tcpPorts
         self.maxHosts = maxHosts
     }

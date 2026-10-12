@@ -35,6 +35,7 @@ public enum DiscoverySource: String, Sendable, Hashable, Codable {
     case bonjour
     case local
     case netbios
+    case ssdp
 }
 
 public struct NetworkService: Sendable, Hashable, Identifiable, Codable {
@@ -81,6 +82,7 @@ public struct Device: Identifiable, Sendable, Hashable, Codable {
     public var mac: MACAddress?
     public var vendor: String?
     public var hostname: String?
+    public var model: String?
     public var kind: DeviceKind
     public var isLocal: Bool
     public var isGateway: Bool
@@ -98,6 +100,7 @@ public struct Device: Identifiable, Sendable, Hashable, Codable {
         mac: MACAddress? = nil,
         vendor: String? = nil,
         hostname: String? = nil,
+        model: String? = nil,
         kind: DeviceKind = .unknown,
         isLocal: Bool = false,
         isGateway: Bool = false,
@@ -112,6 +115,7 @@ public struct Device: Identifiable, Sendable, Hashable, Codable {
         self.mac = mac
         self.vendor = vendor
         self.hostname = hostname
+        self.model = model
         self.kind = kind
         self.isLocal = isLocal
         self.isGateway = isGateway
@@ -158,6 +162,7 @@ public struct Device: Identifiable, Sendable, Hashable, Codable {
         if mac == nil { mac = other.mac }
         vendor = Self.preferredText(vendor, other.vendor)
         hostname = Self.preferredHostname(hostname, other.hostname)
+        model = Self.preferredText(model, other.model)
         isLocal = isLocal || other.isLocal
         isGateway = isGateway || other.isGateway
         if rttMilliseconds == nil { rttMilliseconds = other.rttMilliseconds }
@@ -192,7 +197,7 @@ public struct Device: Identifiable, Sendable, Hashable, Codable {
     }
 
     public static func csvHeader() -> [String] {
-        ["IP", "Hostname", "MAC", "Vendor", "Kind", "Login URL", "Title", "Services", "RTT ms"]
+        ["IP", "Hostname", "MAC", "Vendor", "Model", "Kind", "Login URL", "Title", "Services", "RTT ms"]
     }
 
     public func csvFields() -> [String] {
@@ -201,6 +206,7 @@ public struct Device: Identifiable, Sendable, Hashable, Codable {
             hostname ?? "",
             mac?.canonical ?? "",
             vendor ?? "",
+            model ?? "",
             kind.rawValue,
             primaryLogin?.url.absoluteString ?? "",
             webTitle ?? "",

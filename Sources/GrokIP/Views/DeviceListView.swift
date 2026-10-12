@@ -19,7 +19,8 @@ struct DeviceListView: View {
                         ForEach(session.filteredDevices) { device in
                             DeviceRowView(
                                 device: device,
-                                selected: session.selection == device.id
+                                selected: session.selection == device.id,
+                                isNew: session.isNew(device)
                             )
                             .onTapGesture { session.selection = device.id }
                             .onTapGesture(count: 2) { session.openLogin(device) }
@@ -110,6 +111,10 @@ struct DeviceListView: View {
         if let host = device.hostname {
             Button("Copy hostname") { session.copy(host) }
         }
+        if device.mac != nil, !device.isLocal {
+            Divider()
+            Button("Wake (Wake-on-LAN)") { session.wake(device) }
+        }
         if device.primaryLogin != nil {
             Divider()
             Button(device.loginLabel) { session.openLogin(device) }
@@ -120,6 +125,7 @@ struct DeviceListView: View {
 struct DeviceRowView: View {
     var device: Device
     var selected: Bool
+    var isNew: Bool = false
     @State private var hovering = false
 
     var body: some View {
@@ -132,6 +138,15 @@ struct DeviceRowView: View {
                 Text(device.ip.string)
                     .font(Typeface.mono(12.5))
                     .foregroundStyle(Palette.text)
+                if isNew {
+                    Text("NEW")
+                        .font(Typeface.mono(9, weight: .medium))
+                        .foregroundStyle(Palette.chassis)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 2).fill(Palette.activity))
+                        .help("First time this MAC address has been seen on a scan")
+                }
             }
             .frame(width: 150, alignment: .leading)
 
