@@ -42,8 +42,10 @@ public struct BonjourHit: Sendable, Hashable {
     /// Hardware model advertised in TXT records: `model` (_device-info, AirPlay),
     /// `am` (RAOP), `md` (Google Cast), `ty` (IPP printers).
     public var model: String? {
-        for key in ["model", "am", "md", "ty", "usb_MDL"] {
-            if let value = txt[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+        for key in ["model", "am", "md", "ty", "usb_mdl"] {
+            guard let raw = txt.first(where: { $0.key.lowercased() == key })?.value else { continue }
+            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty {
                 return value
             }
         }

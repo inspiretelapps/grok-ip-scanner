@@ -17,7 +17,7 @@ macOS 14+ · Apple Silicon
 
 1. Pick the interface (Wi-Fi or Ethernet). The range fills in for you (`192.168.1.0/24` or similar).
 2. Click **Scan** (⌘R).
-3. Read IP, hostname, MAC, vendor, and model in the table. Devices whose MAC has never been seen on an earlier scan get a **NEW** badge.
+3. Read IP, hostname, MAC, and vendor in the table; select a row to see its model and open ports. After the first scan sets a baseline, devices with a MAC address never seen before get a **NEW** badge.
 4. Click **Log in** or **Open** on a printer, handset, camera, or NAS to open its web UI in your browser. Double-click a row for the same action.
 5. Right-click a device (or use the detail pane) to **Wake** it with Wake-on-LAN.
 6. **Export CSV** (⇧⌘E) if you want the list elsewhere.

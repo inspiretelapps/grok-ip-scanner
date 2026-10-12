@@ -264,8 +264,10 @@ public enum SSDPDiscovery: Sendable {
         config.timeoutIntervalForRequest = timeout
         config.timeoutIntervalForResource = timeout
         config.waitsForConnectivity = false
-        let session = URLSession(configuration: config)
+        // No redirects: a LAN box must not be able to bounce this fetch elsewhere.
+        let session = URLSession(configuration: config, delegate: RejectRedirects(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
+        let gate = Gate(16)
 
         return await withTaskGroup(of: UPnPDevice?.self, returning: [IPv4Address: UPnPDevice].self) { group in
             for (ip, replies) in locations {
@@ -281,6 +283,8 @@ public enum SSDPDiscovery: Sendable {
                 }
                 let server = ordered.compactMap(\.server).first
                 group.addTask {
+                    await gate.acquire()
+                    defer { Task { await gate.release() } }
                     for url in urls.prefix(3) {
                         guard let fetched = try? await session.data(from: url),
                               let http = fetched.1 as? HTTPURLResponse, http.statusCode == 200,
@@ -296,5 +300,16 @@ public enum SSDPDiscovery: Sendable {
             }
             return result
         }
+    }
+}
+
+private final class RejectRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest
+    ) async -> URLRequest? {
+        nil
     }
 }

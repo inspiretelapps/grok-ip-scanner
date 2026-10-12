@@ -43,7 +43,7 @@ struct DeviceListView: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            headerButton(.ip, width: 150, alignment: .leading)
+            headerButton(.ip, width: 185, alignment: .leading)
             headerButton(.hostname, width: nil, alignment: .leading)
             headerButton(.mac, width: 158, alignment: .leading)
             headerButton(.vendor, width: 150, alignment: .leading)
@@ -158,7 +158,7 @@ struct DeviceRowView: View {
                         .help("First time this MAC address has been seen on a scan")
                 }
             }
-            .frame(width: 150, alignment: .leading)
+            .frame(width: 185, alignment: .leading)
 
             Text(device.hostname ?? "—")
                 .font(Typeface.sans(12.5))

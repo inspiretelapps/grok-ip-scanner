@@ -89,7 +89,9 @@ final class ScanSession {
 
     func wake(_ device: Device) {
         guard let mac = device.mac else { return }
-        WakeOnLAN.send(to: mac, subnetBroadcast: selectedInterface?.broadcast)
+        if !WakeOnLAN.send(to: mac, subnetBroadcast: selectedInterface?.broadcast) {
+            NSSound.beep()
+        }
     }
 
     var selectedInterface: NetworkInterfaceInfo? {
@@ -186,7 +188,9 @@ final class ScanSession {
         startTicker()
 
         let iface = selectedInterface
-        scanIsOnLink = iface.map { range.contains($0.ip) } ?? false
+        scanIsOnLink = iface.map { iface in
+            range.start.raw >= iface.cidr.start.raw && range.end.raw <= iface.cidr.end.raw
+        } ?? false
         let config = ScanConfig(
             range: range,
             interfaceName: iface?.name,
@@ -197,10 +201,10 @@ final class ScanSession {
         let oui = self.oui
         let permission = self.permission
         scanTask = Task { [engine] in
-            if permission.status == .checking {
+            if permission.status == .checking || permission.status == .denied {
                 // Give the Local Network alert a moment so the first scan is not wasted.
                 self.progressPhase = "Waiting for Local Network access"
-                await permission.settle(timeout: .seconds(3))
+                await permission.settle(timeout: .seconds(6))
                 if Task.isCancelled { return }
             }
             let stream = await engine.scan(config: config, oui: oui)
@@ -267,7 +271,11 @@ final class ScanSession {
             let macs = devices.compactMap { $0.isLocal ? nil : $0.mac }
             newMACs = knownDevices.record(macs)
             let remote = devices.filter { !$0.isLocal }
-            macsLikelyHidden = scanIsOnLink && !LocalNetworkPermission.isExempt && remote.count >= 2 && macs.isEmpty
+            macsLikelyHidden = scanIsOnLink
+                && permission.status != .granted
+                && !LocalNetworkPermission.isExempt
+                && remote.count >= 2
+                && macs.isEmpty
             phase = .complete
             progressPhase = "Done"
             ticker?.cancel()

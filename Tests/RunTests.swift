@@ -195,8 +195,7 @@ struct RunTests {
             let packet = WakeOnLAN.magicPacket(for: mac)
             return packet.count == 102
                 && packet.prefix(6).allSatisfy { $0 == 0xFF }
-                && Array(packet[6..<12]) == mac.bytes
-                && Array(packet[96..<102]) == mac.bytes
+                && Array(packet[6...]) == Array(repeating: mac.bytes, count: 16).flatMap { $0 }
         }
         check("bonjour txt model") {
             let hit = BonjourHit(
@@ -205,7 +204,7 @@ struct RunTests {
                 hostname: nil,
                 ip: nil,
                 port: 0,
-                txt: ["model": "MacBookPro18,3"]
+                txt: ["Model": "MacBookPro18,3"]
             )
             return hit.model == "MacBookPro18,3"
         }
@@ -224,6 +223,7 @@ struct RunTests {
         check("csv has model column") {
             let device = Device(ip: IPv4Address("10.0.0.9")!, model: "Synology DS220+")
             return Device.csvHeader().count == device.csvFields().count
+                && Device.csvHeader()[4] == "Model"
                 && device.csvFields()[4] == "Synology DS220+"
         }
 

@@ -44,12 +44,17 @@ struct PermissionBannerView: View {
         if session.permission.status == .denied {
             return "Grok IP Scanner needs Local Network access"
         }
-        return "macOS hid the MAC addresses from this scan"
+        return "No MAC addresses came back from this scan"
     }
 
     private var message: String {
-        "Without it macOS blocks pings and port checks and hides the ARP table, so you only see IP addresses. "
-            + "Open System Settings › Privacy & Security › Local Network, switch on Grok IP Scanner, then scan again. "
-            + "If macOS is showing a prompt, click Allow. No sudo needed."
+        if session.permission.status == .denied {
+            return "Without it macOS blocks pings and port checks and hides the ARP table, so you only see IP addresses. "
+                + "Open System Settings › Privacy & Security › Local Network, switch on Grok IP Scanner, then scan again. "
+                + "If macOS is showing a prompt, click Allow. No sudo needed."
+        }
+        return "This usually means macOS Local Network access is off for Grok IP Scanner: check "
+            + "System Settings › Privacy & Security › Local Network, then scan again. "
+            + "Guest Wi-Fi with client isolation can also hide other devices' MAC addresses."
     }
 }

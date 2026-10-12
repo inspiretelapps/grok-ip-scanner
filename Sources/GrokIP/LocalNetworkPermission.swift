@@ -42,6 +42,7 @@ final class LocalNetworkPermission {
     nonisolated private static let policyDenied: Int32 = -65570 // kDNSServiceErr_PolicyDenied
 
     private var browser: NWBrowser?
+    private var hasSettled = false
     private var activationObserver: NSObjectProtocol?
 
     func start(probeAddresses: [IPv4Address]) {
@@ -66,13 +67,20 @@ final class LocalNetworkPermission {
         }
     }
 
-    /// Waits (up to `timeout`) for the browse to settle, so a scan started right
-    /// after launch does not race the alert.
+    /// Before the first scan of a launch, waits (up to `timeout`) for access to be
+    /// granted. The browse reports "denied" while the alert is still on screen too,
+    /// so this cannot tell "not answered yet" from "said no"; it only waits once.
     func settle(timeout: Duration) async {
+        guard !hasSettled else { return }
+        hasSettled = true
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
-        while status == .checking, clock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(100))
+        while status == .checking || status == .denied, clock.now < deadline {
+            do {
+                try await Task.sleep(for: .milliseconds(100))
+            } catch {
+                return
+            }
         }
     }
 
@@ -96,13 +104,7 @@ final class LocalNetworkPermission {
             switch state {
             case .ready:
                 next = .granted
-            case .waiting(let error):
-                if case .dns(let code) = error, Int32(code) == LocalNetworkPermission.policyDenied {
-                    next = .denied
-                } else {
-                    next = nil
-                }
-            case .failed(let error):
+            case .waiting(let error), .failed(let error):
                 if case .dns(let code) = error, Int32(code) == LocalNetworkPermission.policyDenied {
                     next = .denied
                 } else {
